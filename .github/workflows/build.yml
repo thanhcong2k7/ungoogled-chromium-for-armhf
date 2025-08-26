@@ -101,7 +101,8 @@ jobs:
       # 8) Generate build files bằng gn đã bootstrap
       - name: GN gen
         run: |
-          build/src/out/Default/gn gen build/src/out/Default --fail-on-unused-args
+          cd build/src
+          out/Default/gn gen out/Default --fail-on-unused-args
         # Theo bước "Invoke the build" (gn gen). :contentReference[oaicite:6]{index=6}
 
       # 9) Build bằng ninja

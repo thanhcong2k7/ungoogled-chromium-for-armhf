@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 git ninja-build clang lld \
-                                  build-essential pkg-config curl xz-utils zip
+                                  build-essential pkg-config curl xz-utils zip tree
 
       # (Tùy chọn) Cache kho tải về để tăng tốc những lần build sau
       - name: Cache download_cache
@@ -102,6 +102,7 @@ jobs:
       - name: GN gen
         run: |
           cd build/src
+          tree -a
           out/Default/gn gen out/Default --fail-on-unused-args
         # Theo bước "Invoke the build" (gn gen). :contentReference[oaicite:6]{index=6}
 

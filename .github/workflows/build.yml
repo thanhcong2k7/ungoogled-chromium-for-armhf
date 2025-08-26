@@ -102,7 +102,6 @@ jobs:
       - name: GN gen
         run: |
           cd build/src
-          tree -a
           out/Default/gn gen out/Default --fail-on-unused-args
         # Theo bước "Invoke the build" (gn gen). :contentReference[oaicite:6]{index=6}
 

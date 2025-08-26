@@ -43,4 +43,77 @@ jobs:
       # 3) Apply patches ungoogled
       - name: Apply patches
         run: |
-          python3
+          python3 ./utils/patches.py apply build/src patches
+        # Theo bước "Apply patches". :contentReference[oaicite:3]{index=3}
+
+      # 4) Domain substitution (loại bỏ domain Google)
+      - name: Domain substitution
+        run: |
+          python3 ./utils/domain_substitution.py apply \
+            -r domain_regex.list -f domain_substitution.list \
+            -c build/domsubcache.tar.gz build/src
+        # Theo bước "Substitute domains". :contentReference[oaicite:4]{index=4}
+
+      # 5) Cài sysroot cho ARM (cần cho cross-compile target_cpu="arm")
+      - name: Install ARM sysroot
+        run: |
+          python3 build/src/build/linux/sysroot_scripts/install-sysroot.py --arch=arm
+
+      # 6) Bootstrap GN (nếu không dùng depot_tools sẵn)
+      - name: Bootstrap GN
+        run: |
+          mkdir -p build/src/out/Default
+          python3 build/src/tools/gn/bootstrap/bootstrap.py \
+            --skip-generate-buildfiles -j$(nproc) -o build/src/out/Default/
+        # Theo bước "Build GN". :contentReference[oaicite:5]{index=5}
+
+      # 7) Tạo args.gn tối giản cho ARMhf: webapp + extension, cắt tính năng không cần
+      - name: Write args.gn (ARMhf minimal)
+        run: |
+          cat > build/src/out/Default/args.gn <<'GN'
+          is_debug = false
+          is_official_build = true
+
+          target_os = "linux"
+          target_cpu = "arm"
+          arm_version = 7
+          use_sysroot = true
+
+          is_component_build = false
+          symbol_level = 0
+          blink_symbol_level = 0
+          optimize_for_size = true
+          treat_warnings_as_errors = false
+          use_lld = false
+          use_allocator = "none"
+
+          # Cắt bớt các thành phần nặng không cần cho webapp + extension
+          enable_nacl = false
+          enable_webrtc = false
+          enable_print_preview = false
+          enable_swiftshader = false
+          enable_vulkan = false
+
+          # (Tùy chọn) giảm RAM: single_process có thể kém ổn định hơn
+          # single_process = true
+          GN
+
+      # 8) Generate build files bằng gn đã bootstrap
+      - name: GN gen
+        run: |
+          build/src/out/Default/gn gen build/src/out/Default --fail-on-unused-args
+        # Theo bước "Invoke the build" (gn gen). :contentReference[oaicite:6]{index=6}
+
+      # 9) Build bằng ninja
+      - name: Build chrome (ARMhf)
+        run: |
+          cd build/src
+          ninja -C out/Default chrome
+        # Theo bước "ninja -C out/Default chrome …". :contentReference[oaicite:7]{index=7}
+
+      # 10) Đóng gói artifact (toàn bộ out/Default để đảm bảo đủ file chạy)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ungoogled-chromium-armhf-out-Default
+          path: build/src/out/Default

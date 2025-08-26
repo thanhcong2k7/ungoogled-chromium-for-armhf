@@ -1,43 +1,46 @@
-name: Build Ungoogled Chromium ARMhf
+name: Build Ungoogled Chromium ARMhf (minimal)
 
 on:
-  workflow_dispatch:   # cho phép bạn tự bấm nút chạy
+  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
-      # 1. Lấy code từ chính repo fork
-      - name: Checkout repository
+      - name: Checkout fork
         uses: actions/checkout@v4
 
-      # 2. Cài dependencies build
-      - name: Install dependencies
+      - name: Install build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 git ninja-build clang \
-              lld build-essential pkg-config
+          sudo apt-get install -y python3 git ninja-build clang lld \
+                                  build-essential pkg-config curl xz-utils zip
 
-      # 3. Fetch source Chromium (dùng script có sẵn trong repo)
-      - name: Fetch Chromium source
-        run: |
-          ./utils/downloads.py retrieve --platform linux_armhf
-
-      # 4. Cấu hình build với GN
-      - name: Configure build
-        run: |
-          gn gen out/Default --args="is_debug=false is_component_build=false \
-            symbol_level=0 blink_symbol_level=0 enable_nacl=false \
-            target_cpu=\"arm\" arm_version=7 treat_warnings_as_errors=false"
-
-      # 5. Build với Ninja
-      - name: Build Chromium
-        run: |
-          autoninja -C out/Default chrome
-
-      # 6. Upload binary sau khi build
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      # (Tùy chọn) Cache kho tải về để tăng tốc những lần build sau
+      - name: Cache download_cache
+        uses: actions/cache@v4
         with:
-          name: chromium-armhf
-          path: out/Default/chrome
+          path: build/download_cache
+          key: dcache-${{ hashFiles('downloads.ini') }}
+
+      # 1) Lấy Chromium source qua downloads.py (đúng cú pháp theo docs)
+      - name: Retrieve and unpack Chromium source
+        run: |
+          mkdir -p build/download_cache
+          python3 ./utils/downloads.py retrieve -c build/download_cache -i downloads.ini
+          python3 ./utils/downloads.py unpack   -c build/download_cache -i downloads.ini -- build/src
+        # Hướng dẫn: retrieve + unpack. :contentReference[oaicite:1]{index=1}
+
+      # 2) Prune binaries không cần thiết
+      - name: Prune binaries
+        run: |
+          python3 ./utils/prune_binaries.py build/src pruning.list
+        # Theo bước "Prune binaries". :contentReference[oaicite:2]{index=2}
+
+      # 3) Apply patches ungoogled
+      - name: Apply patches
+        run: |
+          python3

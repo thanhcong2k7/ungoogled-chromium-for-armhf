@@ -1,0 +1,35 @@
+is_debug = false
+is_official_build = true
+target_os = "linux"
+target_cpu = "arm"
+
+is_component_build = false
+symbol_level = 0
+blink_symbol_level = 0
+remove_webcore_debug_symbols = true
+
+enable_nacl = false
+enable_webrtc = false
+enable_remoting = false
+enable_print_preview = false
+enable_hangout_services_extension = false
+enable_google_now = false
+enable_mdns = false
+enable_reporting = false
+enable_swiftshader = false
+enable_vulkan = false
+enable_mojo = true
+
+use_allocator = "none"
+use_ozone = false
+use_sysroot = true
+treat_warnings_as_errors = false
+use_custom_libcxx = false
+enable_precompiled_headers = false
+
+optimize_for_size = true
+fatal_linker_warnings = false
+use_lld = false
+
+# Avoid overhead multi-processing
+single_process = true

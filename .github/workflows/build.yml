@@ -1,46 +1,46 @@
-name: Build Chromium ARMhf (minimal)
+name: Build Ungoogled Chromium ARMhf
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # cho phép bạn tự bấm nút chạy
+  push:                # hoặc chạy khi bạn push code
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      # 1. Lấy code từ chính repo fork
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Cài dependencies build
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git python3 build-essential pkg-config ninja-build curl
+          sudo apt-get install -y python3 git ninja-build clang \
+              lld build-essential pkg-config
 
-      - name: Get depot_tools
-        run: |
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-
+      # 3. Fetch source Chromium (dùng script có sẵn trong repo)
       - name: Fetch Chromium source
         run: |
-          mkdir chromium && cd chromium
-          fetch --nohooks chromium
-          cd src
-          # Ví dụ checkout một version ổn định (128 là stable mid-2024)
-          git checkout tags/128.0.6613.137 -b build-armhf
-          gclient sync
+          ./utils/downloads.py fetch --platform linux_armhf
 
+      # 4. Cấu hình build với GN
       - name: Configure build
         run: |
-          cd chromium/src
-          gn gen out/arm --args="`cat ../../args.gn`"
+          gn gen out/Default --args="is_debug=false is_component_build=false \
+            symbol_level=0 blink_symbol_level=0 enable_nacl=false \
+            target_cpu=\"arm\" arm_version=7 treat_warnings_as_errors=false"
 
+      # 5. Build với Ninja
       - name: Build Chromium
         run: |
-          cd chromium/src
-          autoninja -C out/arm chrome
+          autoninja -C out/Default chrome
 
-      - name: Upload Artifact
+      # 6. Upload binary sau khi build
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: chromium-armhf
-          path: chromium/src/out/arm/chrome
+          path: out/Default/chrome

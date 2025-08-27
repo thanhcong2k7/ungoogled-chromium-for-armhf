@@ -10,115 +10,76 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout fork
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build deps
+      - name: Install depot_tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+
+      - name: Install basic dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 git ninja-build clang lld \
-                                  build-essential pkg-config curl xz-utils zip \
-                                  libssl-dev
+          sudo apt-get install -y python3 git curl lsb-release
+
+      - name: Get Chromium source
+        run: |
+          mkdir -p chromium
+          cd chromium
+          fetch --nohooks chromium
+
+      - name: Install build dependencies
+        run: |
+          cd chromium/src
+          sudo ./build/install-build-deps.sh --arm
+
+      - name: Run hooks
+        run: |
+          cd chromium/src
+          gclient runhooks
 
       - name: Install Rust toolchain
         run: |
-          # Install Rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
-          
-          # Add ARMv7 target (for ARMhf)
           rustup target add armv7-unknown-linux-gnueabihf
-          
-          # Verify installation
-          rustc --version
-          cargo --version
 
-      - name: Cache download_cache
-        uses: actions/cache@v4
-        with:
-          path: build/download_cache
-          key: dcache-${{ hashFiles('downloads.ini') }}
-
-      - name: Retrieve and unpack Chromium source
+      - name: Setup build directory
         run: |
-          mkdir -p build/download_cache
-          python3 ./utils/downloads.py retrieve -c build/download_cache -i downloads.ini
-          python3 ./utils/downloads.py unpack   -c build/download_cache -i downloads.ini -- build/src
+          cd chromium/src
+          gn gen out/Default --args='
+            is_debug = false
+            is_official_build = true
+            target_os = "linux"
+            target_cpu = "arm"
+            arm_version = 7
+            use_sysroot = true
+            is_component_build = false
+            symbol_level = 0
+            blink_symbol_level = 0
+            optimize_for_size = true
+            treat_warnings_as_errors = false
+            enable_nacl = false
+            enable_webrtc = false
+            enable_print_preview = false
+            enable_swiftshader = false
+            enable_vulkan = false
+            enable_rust = true
+            rust_sysroot = "$HOME/.rustup/toolchains/stable-x86_64-unknown-linux-gnu"
+            rustc_version = "$(rustc --version | cut -d\" \" -f2)"
+            rust_default_toolchain = "stable"
+            rust_toolchain_target = "armv7-unknown-linux-gnueabihf"
+          '
 
-      - name: Prune binaries
+      - name: Build Chromium
         run: |
-          python3 ./utils/prune_binaries.py build/src pruning.list
-
-      - name: Apply patches
-        run: |
-          python3 ./utils/patches.py apply build/src patches
-
-      - name: Domain substitution
-        run: |
-          python3 ./utils/domain_substitution.py apply \
-            -r domain_regex.list -f domain_substitution.list \
-            -c build/domsubcache.tar.gz build/src
-
-      - name: Install ARM sysroot
-        run: |
-          python3 build/src/build/linux/sysroot_scripts/install-sysroot.py --arch=arm
-
-      - name: Bootstrap GN
-        run: |
-          mkdir -p build/src/out/Default
-          python3 build/src/tools/gn/bootstrap/bootstrap.py \
-            --skip-generate-buildfiles -j$(nproc) -o build/src/out/Default/
-
-      - name: Write args.gn (ARMhf minimal)
-        run: |
-          cat > build/src/out/Default/args.gn <<'GN'
-          is_debug = false
-          is_official_build = true
-
-          target_os = "linux"
-          target_cpu = "arm"
-          arm_version = 7
-          use_sysroot = true
-
-          is_component_build = false
-          symbol_level = 0
-          blink_symbol_level = 0
-          optimize_for_size = true
-          treat_warnings_as_errors = false
-          use_lld = false
-          use_allocator = "none"
-
-          enable_nacl = false
-          enable_webrtc = false
-          enable_print_preview = false
-          enable_swiftshader = false
-          enable_vulkan = false
-
-          # Rust configuration
-          enable_rust = true
-          rust_sysroot = "~/.rustup/toolchains/stable-x86_64-unknown-linux-gnu"
-          rustc_version = "\$(rustc --version | cut -d' ' -f2)"
-          rust_default_toolchain = "stable"
-          rust_toolchain_target = "armv7-unknown-linux-gnueabihf"
-
-          single_process = true
-          GN
-
-      - name: GN gen
-        run: |
-          cd build/src
-          # Set Rust environment variables
-          source ~/.cargo/env
-          out/Default/gn gen out/Default --fail-on-unused-args
-
-      - name: Build chrome (ARMhf)
-        run: |
-          cd build/src
+          cd chromium/src
           source $HOME/.cargo/env
-          ninja -C out/Default chrome
+          autoninja -C out/Default chrome
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ungoogled-chromium-armhf-out-Default
-          path: build/src/out/Default
+          name: chromium-armhf
+          path: chromium/src/out/Default

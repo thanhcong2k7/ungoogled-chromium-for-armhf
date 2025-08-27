@@ -97,7 +97,7 @@ jobs:
           # Rust configuration
           enable_rust = true
           rust_sysroot = "~/.rustup/toolchains/stable-x86_64-unknown-linux-gnu"
-          rustc_version = "$(rustc --version | cut -d' ' -f2)"
+          rustc_version = "\$(rustc --version | cut -d' ' -f2)"
           rust_default_toolchain = "stable"
           rust_toolchain_target = "armv7-unknown-linux-gnueabihf"
 

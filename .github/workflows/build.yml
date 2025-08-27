@@ -108,7 +108,7 @@ jobs:
         run: |
           cd build/src
           # Set Rust environment variables
-          source $HOME/.cargo/env
+          source ~/.cargo/env
           out/Default/gn gen out/Default --fail-on-unused-args
 
       - name: Build chrome (ARMhf)

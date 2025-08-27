@@ -17,7 +17,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 git ninja-build clang lld \
-                                  build-essential pkg-config curl xz-utils zip
+                                  build-essential pkg-config curl xz-utils zip \
+                                  libssl-dev
+
+      - name: Install Rust toolchain
+        run: |
+          # Install Rustup
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          
+          # Add ARMv7 target (for ARMhf)
+          rustup target add armv7-unknown-linux-gnueabihf
+          
+          # Verify installation
+          rustc --version
+          cargo --version
 
       - name: Cache download_cache
         uses: actions/cache@v4
@@ -79,7 +93,13 @@ jobs:
           enable_print_preview = false
           enable_swiftshader = false
           enable_vulkan = false
-          enable_rust = false
+
+          # Rust configuration
+          enable_rust = true
+          rust_sysroot = "$HOME/.rustup/toolchains/stable-x86_64-unknown-linux-gnu"
+          rustc_version = "$(rustc --version | cut -d' ' -f2)"
+          rust_default_toolchain = "stable"
+          rust_toolchain_target = "armv7-unknown-linux-gnueabihf"
 
           single_process = true
           GN
@@ -87,11 +107,14 @@ jobs:
       - name: GN gen
         run: |
           cd build/src
+          # Set Rust environment variables
+          source $HOME/.cargo/env
           out/Default/gn gen out/Default --fail-on-unused-args
 
       - name: Build chrome (ARMhf)
         run: |
           cd build/src
+          source $HOME/.cargo/env
           ninja -C out/Default chrome
 
       - name: Upload artifact
